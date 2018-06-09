@@ -1,5 +1,4 @@
 import com.google.api.services.bigquery.model.TableRow;
-import io.github.cdimascio.dotenv.Dotenv;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
@@ -10,8 +9,11 @@ import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.transforms.*;
+import org.apache.beam.sdk.transforms.windowing.FixedWindows;
+import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
+import org.joda.time.Duration;
 
 /**
  * Creates a streaming dataflow pipeline that saves events to AVRO and bigquery.
@@ -29,17 +31,10 @@ public class WordcountPipeline {
         void setStreaming(boolean value);
     }
 
-    public static Dotenv getEnv(){
-        return Dotenv.configure()
-                .directory("/home/bdhobare/IdeaProjects/mlpipeline/dataflow")
-                .ignoreIfMalformed()
-                .ignoreIfMissing()
-                .load();
-    }
 
     public static void main(String[] args){
 
-        String TOPIC  = getEnv().get("TOPIC");
+        String TOPIC  = "projects/mythical-pod-142219/topics/wordcount_events";
 
         // set up pipeline options
         Options options = PipelineOptionsFactory.fromArgs(args).withValidation().as(Options.class);
@@ -60,7 +55,7 @@ public class WordcountPipeline {
                 .withCreateDisposition(BigQueryIO.Write.CreateDisposition.CREATE_IF_NEEDED)
                 .withWriteDisposition(BigQueryIO.Write.WriteDisposition.WRITE_APPEND));
 
-
+        pipeline.run().waitUntilFinish();
 
     }
     /**
@@ -124,7 +119,7 @@ public class WordcountPipeline {
                     ParDo.of(new ExtractWordsFn()));
 
             // Count the number of times each word occurs.
-            PCollection<KV<String, Long>> wordCounts = words.apply(Count.perElement());
+            PCollection<KV<String, Long>> wordCounts = words.apply(Window.<String>into(FixedWindows.of(Duration.standardMinutes(1)))).apply(Count.perElement());
 
             return wordCounts;
         }

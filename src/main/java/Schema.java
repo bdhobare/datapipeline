@@ -1,7 +1,7 @@
 import com.google.api.services.bigquery.model.TableFieldSchema;
 import com.google.api.services.bigquery.model.TableReference;
 import com.google.api.services.bigquery.model.TableSchema;
-import io.github.cdimascio.dotenv.Dotenv;
+
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,8 +19,8 @@ public class Schema {
     }
     public static TableReference getTable(){
         // BQ output table information
-        String DATASET  = WordcountPipeline.getEnv().get("DATASET");
-        String PROJECT_ID =  WordcountPipeline.getEnv().get("PROJECT_ID");
+        String DATASET  = "wordcount";
+        String PROJECT_ID =  "mythical-pod-142219";
 
         TableReference table = new TableReference();
         table.setDatasetId(DATASET);
