@@ -1,22 +1,20 @@
 import com.google.api.services.bigquery.model.TableRow;
 import org.apache.beam.sdk.Pipeline;
+import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO;
-import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
-import org.apache.beam.sdk.io.gcp.pubsub.PubsubMessage;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Distribution;
 import org.apache.beam.sdk.metrics.Metrics;
+import org.apache.beam.sdk.options.Default;
+import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.transforms.*;
-import org.apache.beam.sdk.transforms.windowing.FixedWindows;
-import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
-import org.joda.time.Duration;
 
 /**
- * Creates a streaming dataflow pipeline that saves events to AVRO and bigquery.
+ * Creates a batch dataflow pipeline that saves events to AVRO and bigquery.
  *
  * TODO: add support for Parquet files and S3
  */
@@ -27,6 +25,11 @@ public class WordcountPipeline {
         String getTempLocation();
         void setTempLocation(String value);
 
+        @Description("Path of the file to read from")
+        @Default.String("gs://apache-beam-samples/shakespeare/kinglear.txt")
+        String getInputFile();
+        void setInputFile(String value);
+
         boolean isStreaming();
         void setStreaming(boolean value);
     }
@@ -34,18 +37,12 @@ public class WordcountPipeline {
 
     public static void main(String[] args){
 
-        String TOPIC  = "projects/mythical-pod-142219/topics/wordcount_events";
-
         // set up pipeline options
         Options options = PipelineOptionsFactory.fromArgs(args).withValidation().as(Options.class);
         options.setStreaming(false);
         Pipeline pipeline = Pipeline.create(options);
 
-        // read message events from PubSub
-        PCollection<PubsubMessage> events = pipeline
-                .apply(PubsubIO.readMessages().fromTopic(TOPIC));
-        // parse the PubSub events and create rows to insert into BigQuery
-        events.apply("ReadLines", new ReadLines())
+        pipeline.apply("ReadLines", TextIO.read().from(options.getInputFile()))
                 .apply(new CountWords())
                 .apply(MapElements.via(new FormatAsRowFn()))
                 .apply("Remove Null", Filter.by(p -> p != null))
@@ -119,21 +116,9 @@ public class WordcountPipeline {
                     ParDo.of(new ExtractWordsFn()));
 
             // Count the number of times each word occurs.
-            PCollection<KV<String, Long>> wordCounts = words.apply(Window.<String>into(FixedWindows.of(Duration.standardMinutes(1)))).apply(Count.perElement());
+            PCollection<KV<String, Long>> wordCounts = words.apply(Count.perElement());
 
             return wordCounts;
-        }
-    }
-    private static class ReadLines extends PTransform<PCollection<PubsubMessage>, PCollection<String>>{
-
-        public PCollection<String> expand(PCollection<PubsubMessage> input) {
-            return input.apply("Read Lines", ParDo.of(new DoFn<PubsubMessage, String>(){
-                @ProcessElement
-                public void processElement(ProcessContext c) {
-                    String line = c.element().getPayload().toString();
-                    c.output(line);
-                }
-            }));
         }
     }
 }

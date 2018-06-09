@@ -20,7 +20,7 @@ public class Schema {
     public static TableReference getTable(){
         // BQ output table information
         String DATASET  = "wordcount";
-        String PROJECT_ID =  "mythical-pod-142219";
+        String PROJECT_ID =  "PROJECT_ID";
 
         TableReference table = new TableReference();
         table.setDatasetId(DATASET);
